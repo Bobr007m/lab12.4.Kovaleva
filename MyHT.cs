@@ -8,6 +8,7 @@ namespace lab12._4
 {
     public class MyHashTable<T> : IEnumerable<T>, ICollection<T>, IDictionary<string, T> where T : Geometryfigure1
     {
+        static Random random = new Random();
         // Массив записей Point<T>, представляющий собой хэш-таблицу
         public Point<T>[] table;
 
@@ -29,6 +30,73 @@ namespace lab12._4
             set => Add(key, value);
         }
         public bool IsDeleted;
+        // Конструкторы
+        public MyHashTable() : this(10) { }
+
+        public MyHashTable(int length)
+        {
+            if (length < 0)
+                throw new ArgumentOutOfRangeException(nameof(length));
+
+            table = new Point<T>[length];
+            for (int i = 0; i < length; i++)
+            {
+                Add(GenerateRandomKey(), GenerateRandomFigure());
+            }
+        }
+
+        public MyHashTable(MyHashTable<T> c)
+        {
+            if (c == null)
+                throw new ArgumentNullException(nameof(c));
+
+            table = new Point<T>[c.table.Length];
+            count = c.count;
+
+            for (int i = 0; i < c.table.Length; i++)
+            {
+                if (c.table[i] != null && !c.table[i].IsDeleted)
+                {
+                    table[i] = new Point<T>(c.table[i].Key, c.table[i].Value);
+                }
+            }
+        }
+
+        // Методы для генерации случайных данных
+        private static string GenerateRandomKey()
+        {
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            int length = random.Next(5, 10);
+            char[] key = new char[length];
+
+            for (int i = 0; i < length; i++)
+            {
+                key[i] = chars[random.Next(chars.Length)];
+            }
+
+            return new string(key);
+        }
+
+        private static T GenerateRandomFigure()
+        {
+            int figureType = random.Next(1, 4);
+
+            switch (figureType)
+            {
+                case 1: // Круг
+                    return (T)(object)new Circle1(random.Next(1, 11));
+
+                case 2: // Прямоугольник
+                    return (T)(object)new Rectangle1(random.Next(1, 11), random.Next(1, 11));
+
+                case 3: // Параллелепипед
+                    return (T)(object)new Parallelepiped1(random.Next(1, 11), random.Next(1, 11), random.Next(1, 11));
+
+                default:
+                    throw new InvalidOperationException("Неизвестный тип фигуры");
+            }
+        }
+
 
         // Конструктор таблицы
         public MyHashTable(int capacity = 10, double loadFactor = 0.72)
