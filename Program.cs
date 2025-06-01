@@ -51,7 +51,7 @@ namespace lab12._4
 
         static void Main(string[] args)
         {
-            MyHashTable<Geometryfigure1> table = new MyHashTable<Geometryfigure1>();
+            MyHashTable<string, Geometryfigure1> table = new MyHashTable<string, Geometryfigure1>();
             bool exit = false;
 
             while (!exit)
@@ -67,7 +67,6 @@ namespace lab12._4
                 Console.WriteLine("7. Вывести таблицу");
                 Console.WriteLine("8. Перебор foreach");
                 Console.WriteLine("9. Очистить таблицу");
-                Console.WriteLine("10. Скопировать в массив");
                 Console.WriteLine("0. Выход");
                 Console.Write("Выберите действие: ");
 
@@ -83,9 +82,9 @@ namespace lab12._4
                     case 1:
                         Console.Write("Введите емкость таблицы (по умолчанию 10): ");
                         if (int.TryParse(Console.ReadLine(), out int capacity) && capacity > 0)
-                            table = new MyHashTable<Geometryfigure1>(capacity);
+                            table = new MyHashTable<string, Geometryfigure1>(capacity);
                         else
-                            table = new MyHashTable<Geometryfigure1>();
+                            table = new MyHashTable<string, Geometryfigure1>();
                         Console.WriteLine("Таблица создана.");
                         break;
 
@@ -127,15 +126,10 @@ namespace lab12._4
                     case 4:
                         Console.Write("Введите ключ для поиска: ");
                         string searchKey = Console.ReadLine();
-                        try
-                        {
-                            var found = table.Find(searchKey);
+                        if (table.TryGetValue(searchKey, out Geometryfigure1 found))
                             Console.WriteLine($"Найден элемент: {found}");
-                        }
-                        catch (KeyNotFoundException)
-                        {
+                        else
                             Console.WriteLine("Элемент не найден!");
-                        }
                         break;
 
                     case 5:
@@ -154,17 +148,12 @@ namespace lab12._4
                         break;
 
                     case 7:
-                        table.PrintTable();
+                        Console.WriteLine(table.GetTableInfo());
                         break;
 
                     case 8:
-                        Console.WriteLine("Перебор элементов через foreach:");
-                        foreach (var item in table)
-                        {
-                            Console.WriteLine(item);
-                        }
-                        Console.WriteLine("\nПеребор пар ключ-значение:");
-                        foreach (var pair in (table as IEnumerable<KeyValuePair<string, Geometryfigure1>>))
+                        Console.WriteLine("Перебор элементов:");
+                        foreach (var pair in table)
                         {
                             Console.WriteLine($"{pair.Key}: {pair.Value}");
                         }
@@ -173,16 +162,6 @@ namespace lab12._4
                     case 9:
                         table.Clear();
                         Console.WriteLine("Таблица очищена.");
-                        break;
-
-                    case 10:
-                        var array = new Geometryfigure1[table.Count];
-                        table.CopyTo(array, 0);
-                        Console.WriteLine("Элементы скопированы в массив:");
-                        foreach (var item in array)
-                        {
-                            Console.WriteLine(item);
-                        }
                         break;
 
                     case 0:
