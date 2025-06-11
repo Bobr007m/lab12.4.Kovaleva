@@ -11,7 +11,7 @@ namespace lab12._4
     /// </summary>
     /// <typeparam name="TKey">Тип ключа</typeparam>
     /// <typeparam name="TValue">Тип значения</typeparam>
-    public class MyHashTable<TKey, TValue> : IDictionary<TKey, TValue>
+    public class MyHashTable<TKey, TValue> : IDictionary<TKey, TValue>//уже включает в себя другие базовые интерфейсы
     {
         // Основное хранилище данных - массив элементов (Point)
         private Point<TKey, TValue>[] table;
@@ -21,9 +21,6 @@ namespace lab12._4
 
         // Пороговое значение коэффициента заполнения для расширения таблицы
         private readonly double loadFactorThreshold;
-
-        // Компаратор для сравнения ключей
-        private readonly IEqualityComparer<TKey> comparer;
 
         // Генератор случайных чисел для создания тестовых данных
         private readonly Random random = new Random();
@@ -36,25 +33,24 @@ namespace lab12._4
 
         // Текущий коэффициент заполнения таблицы
         public double LoadFactor => (double)count / table.Length;
+        /// <summary>
+        /// Конструктор по умолчанию
+        /// </summary>
+        public MyHashTable() : this(10) { }
 
         /// <summary>
         /// Основной конструктор хеш-таблицы
         /// </summary>
         /// <param name="capacity">Начальная емкость таблицы</param>
         /// <param name="loadFactorThreshold">Порог заполнения для расширения (0.0 - 1.0)</param>
-        /// <param name="comparer">Компаратор для сравнения ключей</param>
-        public MyHashTable(int capacity = 10, double loadFactorThreshold = 0.72,
-                         IEqualityComparer<TKey> comparer = null)
+        public MyHashTable(int capacity = 10, double loadFactorThreshold = 0.72)
         {
-            // Проверка входных параметров
             if (capacity <= 0) throw new ArgumentException("Capacity must be positive");
             if (loadFactorThreshold <= 0 || loadFactorThreshold > 1)
                 throw new ArgumentException("Invalid load factor threshold");
 
-            // Инициализация полей
             table = new Point<TKey, TValue>[capacity];
             this.loadFactorThreshold = loadFactorThreshold;
-            this.comparer = comparer ?? EqualityComparer<TKey>.Default;
         }
 
         /// <summary>
@@ -63,17 +59,13 @@ namespace lab12._4
         /// <param name="length">Количество случайных элементов</param>
         public MyHashTable(int length)
         {
-            // Рассчитываем начальную емкость
             int capacity = (int)(length / 0.7) + 1;
-
-            // Инициализируем основные поля
             if (capacity <= 0) throw new ArgumentException("Capacity must be positive");
+
             table = new Point<TKey, TValue>[capacity];
-            this.loadFactorThreshold = 0.72; // стандартное значение
-            this.comparer = EqualityComparer<TKey>.Default;
+            this.loadFactorThreshold = 0.72;
             this.random = new Random();
 
-            // Заполняем таблицу случайными элементами
             for (int i = 0; i < length; i++)
             {
                 try
@@ -84,22 +76,33 @@ namespace lab12._4
                 }
                 catch (NotSupportedException)
                 {
-                    // Пропускаем неподдерживаемые типы
                     continue;
                 }
             }
         }
 
         /// <summary>
-        /// Конструктор копирования
+        /// Конструктор копирования с глубокой копией значений
         /// </summary>
-        /// <param name="source">Исходная таблица для копирования</param>
         public MyHashTable(MyHashTable<TKey, TValue> source) : this(source.table.Length)
         {
-            // Копирование всех элементов из исходной таблицы
             foreach (var item in source)
             {
-                this.Add(item.Key, item.Value);
+                TValue valueCopy;
+                if (typeof(TValue).IsValueType || item.Value == null)
+                {
+                    valueCopy = item.Value; // значение или null
+                }
+                else if (item.Value is ICloneable cloneable)
+                {
+                    valueCopy = (TValue)cloneable.Clone();
+                }
+                else
+                {
+                    throw new InvalidOperationException("Cannot deep copy non-ICloneable reference type");
+                }
+
+                Add(item.Key, valueCopy);
             }
         }
 
@@ -156,33 +159,45 @@ namespace lab12._4
             {
                 if (key == null) throw new ArgumentNullException(nameof(key));
 
-                // Поиск существующего элемента
-                int index = GetIndex(key);
-                for (int i = 0; i < table.Length; i++)
+                if (TryFindIndex(key, out int index, out _))
                 {
-                    int currentIndex = (index + i) % table.Length;
-                    var entry = table[currentIndex];
-
-                    if (entry == null)
-                    {
-                        // Ключ не найден - добавляем новый элемент
-                        Add(key, value);
-                        return;
-                    }
-
-                    if (!entry.IsDeleted && comparer.Equals(entry.Key, key))
-                    {
-                        // Ключ найден - обновляем значение
-                        entry.Value = value;
-                        return;
-                    }
+                    // Обновляем значение по найденному индексу
+                    table[index].Value = value;
                 }
-
-                // Если не нашли - добавляем новый
-                Add(key, value);
+                else
+                {
+                    Add(key, value);
+                }
             }
         }
+        private bool TryFindIndex(TKey key, out int index, out TValue value)
+        {
+            if (key == null) throw new ArgumentNullException(nameof(key));
 
+            for (int i = 0; i < table.Length; i++)
+            {
+                int currentIndex = (GetIndex(key) + i) % table.Length;
+                var entry = table[currentIndex];
+
+                if (entry == null)
+                {
+                    index = -1;
+                    value = default;
+                    return false;
+                }
+
+                if (!entry.IsDeleted && EqualityComparer<TKey>.Default.Equals(entry.Key, key))
+                {
+                    index = currentIndex;
+                    value = entry.Value;
+                    return true;
+                }
+            }
+
+            index = -1;
+            value = default;
+            return false;
+        }
         /// <summary>
         /// Проверка наличия ключа в таблице
         /// </summary>
@@ -192,20 +207,15 @@ namespace lab12._4
             if (count == 0) return false;
 
             int index = GetIndex(key);
-
-            // Линейное пробирование для поиска ключа
             for (int i = 0; i < table.Length; i++)
             {
                 int currentIndex = (index + i) % table.Length;
                 var entry = table[currentIndex];
-
                 if (entry == null)
                     return false;
-
-                if (!entry.IsDeleted && comparer.Equals(entry.Key, key))
+                if (!entry.IsDeleted && EqualityComparer<TKey>.Default.Equals(entry.Key, key))
                     return true;
             }
-
             return false;
         }
 
@@ -216,32 +226,23 @@ namespace lab12._4
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
 
-            // Проверка необходимости расширения таблицы
             if (LoadFactor >= loadFactorThreshold)
                 Resize();
 
             int index = GetIndex(key);
-
-            // Поиск места для вставки (свободной ячейки или ячейки с удаленным элементом)
             for (int i = 0; i < table.Length; i++)
             {
                 int currentIndex = (index + i) % table.Length;
                 var entry = table[currentIndex];
-
                 if (entry == null || entry.IsDeleted)
                 {
-                    // Нашли свободное место - вставляем элемент
                     table[currentIndex] = new Point<TKey, TValue>(key, value);
                     count++;
                     return;
                 }
-
-                // Проверка на дубликат ключа
-                if (comparer.Equals(entry.Key, key))
+                if (!entry.IsDeleted && EqualityComparer<TKey>.Default.Equals(entry.Key, key))
                     throw new ArgumentException($"An item with the same key '{key}' already exists");
             }
-
-            // Если не нашли свободного места (маловероятно после Resize)
             throw new InvalidOperationException("Hash table is full");
         }
 
@@ -258,23 +259,18 @@ namespace lab12._4
             }
 
             int index = GetIndex(key);
-
-            // Линейное пробирование для поиска ключа
             for (int i = 0; i < table.Length; i++)
             {
                 int currentIndex = (index + i) % table.Length;
                 var entry = table[currentIndex];
-
                 if (entry == null)
                     break;
-
-                if (!entry.IsDeleted && comparer.Equals(entry.Key, key))
+                if (!entry.IsDeleted && EqualityComparer<TKey>.Default.Equals(entry.Key, key))
                 {
                     value = entry.Value;
                     return true;
                 }
             }
-
             value = default;
             return false;
         }
@@ -288,25 +284,19 @@ namespace lab12._4
             if (count == 0) return false;
 
             int index = GetIndex(key);
-
-            // Поиск элемента для удаления
             for (int i = 0; i < table.Length; i++)
             {
                 int currentIndex = (index + i) % table.Length;
                 var entry = table[currentIndex];
-
                 if (entry == null)
                     break;
-
-                if (!entry.IsDeleted && comparer.Equals(entry.Key, key))
+                if (!entry.IsDeleted && EqualityComparer<TKey>.Default.Equals(entry.Key, key))
                 {
-                    // Логическое удаление (помечаем флагом)
                     entry.IsDeleted = true;
                     count--;
                     return true;
                 }
             }
-
             return false;
         }
 
@@ -347,11 +337,27 @@ namespace lab12._4
             if (array.Length - arrayIndex < count)
                 throw new ArgumentException("Not enough space in destination array");
 
-            // Копирование элементов в массив
             int i = arrayIndex;
-            foreach (var item in this)
+            foreach (var entry in table)
             {
-                array[i++] = item;
+                if (entry != null && !entry.IsDeleted)
+                {
+                    TValue valueCopy;
+                    if (typeof(TValue).IsValueType || entry.Value == null)
+                    {
+                        valueCopy = entry.Value;
+                    }
+                    else if (entry.Value is ICloneable cloneable)
+                    {
+                        valueCopy = (TValue)cloneable.Clone();
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("Cannot deep copy non-ICloneable reference type");
+                    }
+
+                    array[i++] = new KeyValuePair<TKey, TValue>(entry.Key, valueCopy);
+                }
             }
         }
 
@@ -440,7 +446,11 @@ namespace lab12._4
         /// <summary>
         /// Вычисление индекса в таблице по ключу
         /// </summary>
-        private int GetIndex(TKey key) => Math.Abs(comparer.GetHashCode(key)) % table.Length;
+        private int GetIndex(TKey key)
+        {
+            int hashCode = key == null ? 0 : EqualityComparer<TKey>.Default.GetHashCode(key);
+            return Math.Abs(hashCode) % table.Length;
+        }
 
         /// <summary>
         /// Получение перечислителя для foreach
